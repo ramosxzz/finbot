@@ -1,13 +1,13 @@
 export enum Category {
-  ALIMENTACAO = '🍔 Alimentação',
-  TRANSPORTE = '🚗 Transporte',
-  LAZER = '🎮 Lazer',
-  SAUDE = '🏥 Saúde',
-  EDUCACAO = '📚 Educação',
-  MORADIA = '🏠 Moradia',
-  COMPRAS = '🛒 Compras',
-  SERVICOS = '📱 Serviços',
-  OUTROS = '📦 Outros'
+  ALIMENTACAO = 'Alimentacao',
+  TRANSPORTE = 'Transporte',
+  LAZER = 'Lazer',
+  SAUDE = 'Saude',
+  EDUCACAO = 'Educacao',
+  MORADIA = 'Moradia',
+  COMPRAS = 'Compras',
+  SERVICOS = 'Servicos',
+  OUTROS = 'Outros'
 }
 
 export interface Expense {

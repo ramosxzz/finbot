@@ -1,33 +1,55 @@
-# Rodar o FinBot no Umbrel com Portainer
+# Rodar o FinBot no Umbrel com Portainer e Telegram
 
-Use este caminho para deixar o FinBot rodando no seu servidor, sem depender do seu PC.
+Use este caminho para deixar o FinBot rodando no seu servidor, sem depender do seu PC e sem precisar de outro numero de WhatsApp.
 
-## Pelo Portainer usando Git
+## 1. Criar o bot no Telegram
+
+1. Abra o Telegram.
+2. Procure por `@BotFather`.
+3. Envie `/newbot`.
+4. Escolha um nome, por exemplo `FinBot`.
+5. Escolha um username que termine com `bot`, por exemplo `meu_finbot_bot`.
+6. Copie o token que o BotFather enviar.
+
+O token tem um formato parecido com:
+
+`123456789:AA...`
+
+## 2. Atualizar a stack no Portainer
 
 1. Abra o Portainer no Umbrel.
 2. Va em **Stacks**.
-3. Clique em **Add stack**.
-4. Nome da stack: `finbot`.
-5. Escolha **Repository**.
-6. Repository URL:
+3. Abra a stack `finbot`.
+4. Use o repositorio:
    `https://github.com/ramosxzz/finbot.git`
-7. Branch: `master`
-8. Compose path:
+5. Repository reference:
+   `refs/heads/master`
+6. Compose path:
    `docker-compose.yml`
-9. Clique em **Deploy the stack**.
+7. Em **Environment variables**, adicione:
+   - name: `TELEGRAM_BOT_TOKEN`
+   - value: o token enviado pelo BotFather
+8. Clique em **Update the stack**.
 
-## Primeiro acesso
+## 3. Usar
 
-Depois que subir, abra no navegador:
+Abra o bot no Telegram e envie:
 
-`http://IP_DO_SEU_UMBREL:3000/qr`
+`/start`
 
-No WhatsApp, va em **Aparelhos conectados** e escaneie o QR Code.
+Depois teste:
 
-Depois disso, mande `ajuda` para o numero conectado.
+`gastei 50 de almoco`
+
+Outros comandos:
+
+- `ajuda`
+- `resumo`
+- `ultimos 5`
+- `categorias`
+- `relatorio`
 
 ## Importante
 
-- Nao exponha a porta `3000` publicamente na internet. Use apenas na rede local ou via VPN/Tailscale.
-- O volume `finbot-storage` guarda a sessao do WhatsApp e o banco de gastos. Nao apague esse volume se nao quiser escanear o QR de novo e perder dados.
-- Se trocar de servidor, faca backup do volume antes.
+- Nao publique o token do Telegram em prints ou mensagens.
+- O volume `finbot-storage` guarda o banco de gastos. Nao apague esse volume se nao quiser perder dados.

@@ -4,7 +4,7 @@ import { getExpensesByMonth, getPreviousMonthData } from './database';
 export function generateMonthlyReport(year: number, month: number): MonthlyReport {
   const expenses = getExpensesByMonth(year, month);
 
-  const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  const monthNames = ['Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho',
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
   const totalSpent = expenses.reduce((sum, e) => sum + e.amount, 0);
@@ -53,7 +53,7 @@ function generateTips(
   const tips: string[] = [];
 
   if (expenses.length === 0) {
-    tips.push('Nenhum gasto registrado este mês. Comece a registrar suas despesas!');
+    tips.push('Nenhum gasto registrado este mes. Comece a registrar suas despesas.');
     return tips;
   }
 
@@ -63,34 +63,34 @@ function generateTips(
   const topCategory = sortedCategories[0];
   if (topCategory) {
     const percentage = ((topCategory[1] / totalSpent) * 100).toFixed(0);
-    tips.push(`Seu maior gasto foi com ${topCategory[0]} (${percentage}% do total)`);
+    tips.push(`Seu maior gasto foi com ${topCategory[0]} (${percentage}% do total).`);
   }
 
   if (comparisonWithPreviousMonth !== null) {
     if (comparisonWithPreviousMonth > 10) {
-      tips.push(`⚠️ Você gastou ${comparisonWithPreviousMonth.toFixed(0)}% a mais que no mês passado`);
+      tips.push(`Voce gastou ${comparisonWithPreviousMonth.toFixed(0)}% a mais que no mes passado.`);
     } else if (comparisonWithPreviousMonth < -10) {
-      tips.push(`🎉 Parabéns! Você gastou ${Math.abs(comparisonWithPreviousMonth).toFixed(0)}% menos que no mês passado`);
+      tips.push(`Parabens! Voce gastou ${Math.abs(comparisonWithPreviousMonth).toFixed(0)}% menos que no mes passado.`);
     }
   }
 
   const foodExpenses = categoryBreakdown[Category.ALIMENTACAO] || 0;
   if (foodExpenses > totalSpent * 0.3) {
-    tips.push('💡 Considere cozinhar mais em casa para reduzir gastos com alimentação');
+    tips.push('Considere cozinhar mais em casa para reduzir gastos com alimentacao.');
   }
 
   const leisureExpenses = categoryBreakdown[Category.LAZER] || 0;
   if (leisureExpenses > totalSpent * 0.2) {
-    tips.push('💡 Seus gastos com lazer estão altos. Que tal buscar opções gratuitas?');
+    tips.push('Seus gastos com lazer estao altos. Que tal buscar opcoes gratuitas?');
   }
 
   const transportExpenses = categoryBreakdown[Category.TRANSPORTE] || 0;
   if (transportExpenses > totalSpent * 0.25) {
-    tips.push('💡 Considere usar transporte público ou carona para reduzir gastos com transporte');
+    tips.push('Considere usar transporte publico ou carona para reduzir gastos com transporte.');
   }
 
   if (expenses.length < 10) {
-    tips.push('📝 Continue registrando seus gastos para obter análises mais precisas');
+    tips.push('Continue registrando seus gastos para obter analises mais precisas.');
   }
 
   return tips;
@@ -99,78 +99,64 @@ function generateTips(
 export function formatReportAsText(report: MonthlyReport): string {
   const lines: string[] = [];
 
-  lines.push('╔══════════════════════════════════════╗');
-  lines.push(`║   📊 RELATÓRIO FINANCEIRO - ${report.month.toUpperCase()}/${report.year} ║`);
-  lines.push('╠══════════════════════════════════════╣');
-  lines.push('║');
-  lines.push(`║   💰 TOTAL GASTO: R$ ${report.totalSpent.toFixed(2).replace('.', ',')}`);
-  lines.push(`║   📅 MÉDIA DIÁRIA: R$ ${report.averageDaily.toFixed(2).replace('.', ',')}`);
+  lines.push(`RELATORIO FINANCEIRO - ${report.month.toUpperCase()}/${report.year}`);
+  lines.push('');
+  lines.push(`TOTAL GASTO: R$ ${formatMoney(report.totalSpent)}`);
+  lines.push(`MEDIA DIARIA: R$ ${formatMoney(report.averageDaily)}`);
 
   if (report.comparisonWithPreviousMonth !== null) {
-    const emoji = report.comparisonWithPreviousMonth > 0 ? '📈' : '📉';
-    lines.push(`║   ${emoji} VS MÊS PASSADO: ${report.comparisonWithPreviousMonth > 0 ? '+' : ''}${report.comparisonWithPreviousMonth.toFixed(0)}%`);
+    lines.push(`VS MES PASSADO: ${report.comparisonWithPreviousMonth > 0 ? '+' : ''}${report.comparisonWithPreviousMonth.toFixed(0)}%`);
   }
 
-  lines.push('║');
-  lines.push('║   📈 POR CATEGORIA:');
+  lines.push('');
+  lines.push('POR CATEGORIA:');
 
   const sortedCategories = Object.entries(report.categoryBreakdown)
     .sort(([, a], [, b]) => b - a);
 
-  const maxAmount = Math.max(...Object.values(report.categoryBreakdown));
-  const barLength = 10;
-
-  for (const [category, amount] of sortedCategories) {
-    const barFilled = Math.round((amount / maxAmount) * barLength);
-    const bar = '█'.repeat(barFilled) + '░'.repeat(barLength - barFilled);
-    const amountStr = `R$ ${amount.toFixed(2).replace('.', ',')}`;
-    lines.push(`║   ${category} ${bar} ${amountStr.padStart(15)}`);
+  if (sortedCategories.length === 0) {
+    lines.push('- Nenhum gasto registrado.');
   }
 
-  lines.push('║');
+  for (const [category, amount] of sortedCategories) {
+    lines.push(`- ${category}: R$ ${formatMoney(amount)}`);
+  }
 
   if (report.topExpenses.length > 0) {
-    lines.push('║   🔥 TOP GASTOS:');
+    lines.push('');
+    lines.push('TOP GASTOS:');
     report.topExpenses.slice(0, 5).forEach((expense, index) => {
-      const desc = expense.description.length > 30
-        ? expense.description.substring(0, 27) + '...'
-        : expense.description;
-      lines.push(`║   ${index + 1}. ${desc} - R$ ${expense.amount.toFixed(2).replace('.', ',')}`);
+      lines.push(`${index + 1}. ${expense.description} - R$ ${formatMoney(expense.amount)}`);
     });
-    lines.push('║');
   }
 
   if (report.tips.length > 0) {
-    lines.push('║   💡 DICAS DO MÊS:');
-    report.tips.forEach(tip => {
-      const tipLine = tip.length > 40 ? tip.substring(0, 37) + '...' : tip;
-      lines.push(`║   • ${tipLine}`);
-    });
+    lines.push('');
+    lines.push('DICAS DO MES:');
+    report.tips.forEach(tip => lines.push(`- ${tip}`));
   }
-
-  lines.push('║');
-  lines.push('╚══════════════════════════════════════╝');
 
   return lines.join('\n');
 }
 
 export function formatExpenseConfirmation(expense: Expense): string {
   const dateStr = expense.date.toLocaleDateString('pt-BR');
-  return `✅ *Gasto registrado!*\n\n📝 *Descrição:* ${expense.description}\n💰 *Valor:* R$ ${expense.amount.toFixed(2).replace('.', ',')}\n🏷️ *Categoria:* ${expense.category}\n📅 *Data:* ${dateStr}\n🆔 *ID:* \`${expense.id}\``;
+  return `Gasto registrado!\n\nDescricao: ${expense.description}\nValor: R$ ${formatMoney(expense.amount)}\nCategoria: ${expense.category}\nData: ${dateStr}\nID: ${expense.id}`;
 }
 
 export function formatLastExpenses(expenses: Expense[]): string {
   if (expenses.length === 0) {
-    return '📭 Nenhum gasto registrado ainda.';
+    return 'Nenhum gasto registrado ainda.';
   }
 
   const lines: string[] = [];
-  lines.push('📋 *Últimos gastos:*\n');
+  lines.push('Ultimos gastos:\n');
 
   expenses.forEach((expense, index) => {
     const dateStr = expense.date.toLocaleDateString('pt-BR');
-    lines.push(`${index + 1}. ${expense.category} - R$ ${expense.amount.toFixed(2).replace('.', ',')} (${dateStr})`);
-    lines.push(`   └ ${expense.description}`);
+    lines.push(`${index + 1}. ${expense.category} - R$ ${formatMoney(expense.amount)} (${dateStr})`);
+    lines.push(`   ${expense.description}`);
+    lines.push(`   ID: ${expense.id}`);
     lines.push('');
   });
 
@@ -178,7 +164,7 @@ export function formatLastExpenses(expenses: Expense[]): string {
 }
 
 export function formatSummary(month: number, year: number, expenses: Expense[]): string {
-  const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  const monthNames = ['Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho',
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
   const total = expenses.reduce((sum, e) => sum + e.amount, 0);
@@ -189,14 +175,23 @@ export function formatSummary(month: number, year: number, expenses: Expense[]):
     categoryTotals[cat] = (categoryTotals[cat] || 0) + expense.amount;
   }
 
-  let response = `📊 *Resumo de ${monthNames[month - 1]}/${year}*\n\n`;
-  response += `💰 *Total:* R$ ${total.toFixed(2).replace('.', ',')}\n`;
-  response += `📝 *Total de gastos:* ${expenses.length}\n\n`;
+  let response = `Resumo de ${monthNames[month - 1]}/${year}\n\n`;
+  response += `Total: R$ ${formatMoney(total)}\n`;
+  response += `Total de gastos: ${expenses.length}\n\n`;
 
-  response += '📈 *Por categoria:*\n';
-  for (const [category, amount] of Object.entries(categoryTotals).sort(([, a], [, b]) => b - a)) {
-    response += `• ${category}: R$ ${amount.toFixed(2).replace('.', ',')}\n`;
+  response += 'Por categoria:\n';
+  const entries = Object.entries(categoryTotals).sort(([, a], [, b]) => b - a);
+  if (entries.length === 0) {
+    response += '- Nenhum gasto registrado.\n';
+  }
+
+  for (const [category, amount] of entries) {
+    response += `- ${category}: R$ ${formatMoney(amount)}\n`;
   }
 
   return response;
+}
+
+function formatMoney(value: number): string {
+  return value.toFixed(2).replace('.', ',');
 }

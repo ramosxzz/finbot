@@ -1,7 +1,7 @@
 {
   "name": "finbot",
   "version": "1.0.0",
-  "description": "Assistente de controle financeiro via WhatsApp",
+  "description": "Assistente de controle financeiro via Telegram",
   "main": "src/index.js",
   "engines": {
     "node": "20.x"
@@ -12,20 +12,13 @@
     "dev": "tsc && node src/index.js"
   },
   "dependencies": {
-    "@sparticuz/chromium": "^122.0.0",
-    "node-cron": "^3.0.3",
-    "puppeteer": "^22.0.0",
-    "qrcode": "^1.5.4",
-    "qrcode-terminal": "^0.12.0",
+    "@types/node-telegram-bot-api": "^0.64.14",
+    "node-telegram-bot-api": "^0.67.0",
     "sql.js": "^1.11.0",
-    "uuid": "^10.0.0",
-    "whatsapp-web.js": "^1.23.0"
+    "uuid": "^10.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "@types/node-cron": "^3.0.11",
-    "@types/qrcode": "^1.5.6",
-    "@types/qrcode-terminal": "^0.12.0",
     "@types/uuid": "^10.0.0",
     "typescript": "^5.5.0"
   }

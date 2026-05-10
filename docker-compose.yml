@@ -9,9 +9,8 @@ services:
       - "3000:3000"
     environment:
       NODE_ENV: production
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       DATA_DIR: /app/storage/data
-      WWEBJS_AUTH_DIR: /app/storage/.wwebjs_auth
-      PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
     volumes:
       - finbot-storage:/app/storage
 
