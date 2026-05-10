@@ -4,6 +4,7 @@ import cron from 'node-cron';
 import { initDatabase, addExpense, addIncome, getExpensesByMonth, getIncomeByMonth, getKnownChats, getLastExpenses, getSetting, deleteExpense, setSetting, upsertChat } from './database';
 import { parseTransactionMessage, getAllCategories } from './parser';
 import { parseTransactionWithAi } from './aiParser';
+import { parseCommand } from './commandParser';
 import { generateMonthlyReport, formatReportAsText, formatExpenseConfirmation, formatIncomeConfirmation, formatLastExpenses, formatSummary } from './reports';
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -94,35 +95,9 @@ async function handleMessage(bot: TelegramBot, message: TelegramBot.Message): Pr
 
   console.log(`Mensagem de ${chatId}: ${body}`);
 
-  if (lowerBody === 'ajuda' || lowerBody === 'help' || lowerBody === 'comandos' || lowerBody === '/help') {
-    await bot.sendMessage(chatId, getHelpText());
-    return;
-  }
-
-  if (lowerBody === 'categorias' || lowerBody === '/categorias') {
-    await bot.sendMessage(chatId, `Categorias disponiveis:\n\n${getAllCategories()}`);
-    return;
-  }
-
-  if (lowerBody === 'resumo' || lowerBody === '/resumo') {
-    await sendSummary(bot, message);
-    return;
-  }
-
-  if (lowerBody === 'relatorio' || lowerBody === 'relatório' || lowerBody === '/relatorio') {
-    await sendFullReport(bot, message);
-    return;
-  }
-
-  if (lowerBody.startsWith('ultimos') || lowerBody.startsWith('/ultimos')) {
-    const limit = Number.parseInt(lowerBody.replace('/ultimos', '').replace('ultimos', '').trim(), 10) || 10;
-    await sendLastExpenses(bot, message, limit);
-    return;
-  }
-
-  if (lowerBody.startsWith('excluir') || lowerBody.startsWith('deletar') || lowerBody.startsWith('/excluir')) {
-    const idOrIndex = body.replace(/\/excluir|excluir|deletar/gi, '').trim();
-    await deleteExpenseById(bot, message, idOrIndex);
+  const command = parseCommand(body);
+  if (command) {
+    await handleCommand(bot, message, command);
     return;
   }
 
@@ -145,6 +120,37 @@ async function handleMessage(bot: TelegramBot, message: TelegramBot.Message): Pr
     `gastei 50 reais de almoco\n` +
     `recebi 150 da raquel`
   );
+}
+
+async function handleCommand(bot: TelegramBot, message: TelegramBot.Message, command: NonNullable<ReturnType<typeof parseCommand>>): Promise<void> {
+  if (command.type === 'help') {
+    await bot.sendMessage(message.chat.id, getHelpText());
+    return;
+  }
+
+  if (command.type === 'categories') {
+    await bot.sendMessage(message.chat.id, `Categorias disponiveis:\n\n${getAllCategories()}`);
+    return;
+  }
+
+  if (command.type === 'summary') {
+    await sendSummary(bot, message);
+    return;
+  }
+
+  if (command.type === 'report') {
+    await sendFullReport(bot, message);
+    return;
+  }
+
+  if (command.type === 'last') {
+    await sendLastExpenses(bot, message, command.limit);
+    return;
+  }
+
+  if (command.type === 'delete') {
+    await deleteExpenseById(bot, message, command.id);
+  }
 }
 
 async function parseTransaction(body: string) {
