@@ -3,6 +3,7 @@ import http from 'http';
 import cron from 'node-cron';
 import { initDatabase, addExpense, addIncome, getExpensesByMonth, getIncomeByMonth, getKnownChats, getLastExpenses, getSetting, deleteExpense, setSetting, upsertChat } from './database';
 import { parseTransactionMessage, getAllCategories } from './parser';
+import { parseTransactionWithAi } from './aiParser';
 import { generateMonthlyReport, formatReportAsText, formatExpenseConfirmation, formatIncomeConfirmation, formatLastExpenses, formatSummary } from './reports';
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -125,7 +126,7 @@ async function handleMessage(bot: TelegramBot, message: TelegramBot.Message): Pr
     return;
   }
 
-  const parsed = parseTransactionMessage(body);
+  const parsed = await parseTransaction(body);
   if (parsed) {
     const transaction = parsed.type === 'income'
       ? addIncome(parsed.amount, parsed.description, parsed.date)
@@ -144,6 +145,19 @@ async function handleMessage(bot: TelegramBot, message: TelegramBot.Message): Pr
     `gastei 50 reais de almoco\n` +
     `recebi 150 da raquel`
   );
+}
+
+async function parseTransaction(body: string) {
+  try {
+    const aiParsed = await parseTransactionWithAi(body);
+    if (aiParsed) {
+      return aiParsed;
+    }
+  } catch (error) {
+    console.error('Erro ao interpretar com IA:', error);
+  }
+
+  return parseTransactionMessage(body);
 }
 
 function getHelpText(): string {

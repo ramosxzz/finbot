@@ -11,6 +11,8 @@ services:
       NODE_ENV: production
       TZ: America/Sao_Paulo
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY}
+      NVIDIA_MODEL: ${NVIDIA_MODEL:-meta/llama-3.1-8b-instruct}
       DATA_DIR: /app/storage/data
     volumes:
       - finbot-storage:/app/storage
