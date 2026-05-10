@@ -1,6 +1,5 @@
 FROM node:20-bookworm-slim
 
-ENV NODE_ENV=production
 ENV PUPPETEER_SKIP_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium
 
@@ -29,13 +28,15 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --include=dev
 
 COPY tsconfig.json ./
 COPY src ./src
 
 RUN npm run build \
   && npm prune --omit=dev
+
+ENV NODE_ENV=production
 
 RUN mkdir -p /app/storage/data /app/storage/.wwebjs_auth
 
