@@ -1,11 +1,56 @@
 import { Client, LocalAuth, Message } from 'whatsapp-web.js';
 import qrcode from 'qrcode-terminal';
+import QRCode from 'qrcode';
+import http from 'http';
 import cron from 'node-cron';
 import chromium from '@sparticuz/chromium';
 import { initDatabase, addExpense, getExpensesByMonth, getLastExpenses, deleteExpense } from './database';
 import { parseExpenseMessage, getAllCategories } from './parser';
 import { generateMonthlyReport, formatReportAsText, formatExpenseConfirmation, formatLastExpenses, formatSummary } from './reports';
 import { Category } from './types';
+
+let latestQR: string = '';
+
+const server = http.createServer(async (req, res) => {
+  if (req.url === '/qr' && latestQR) {
+    const qrImage = await QRCode.toDataURL(latestQR, { width: 400 });
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(`
+      <html>
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>FinBot - QR Code</title>
+          <style>
+            body { display:flex; justify-content:center; align-items:center; min-height:100vh; margin:0; background:#111; font-family:Arial; }
+            .container { text-align:center; background:#fff; padding:30px; border-radius:16px; }
+            h1 { color:#075E54; margin-bottom:8px; }
+            p { color:#666; font-size:14px; }
+            img { margin:16px 0; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>FinBot</h1>
+            <p>Escaneie com WhatsApp &rarr; Aparelhos conectados</p>
+            <img src="${qrImage}" />
+          </div>
+        </body>
+      </html>
+    `);
+  } else if (req.url === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok' }));
+  } else {
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end('<h1>FinBot is running</h1><p>Go to <a href="/qr">/qr</a> to scan the QR code</p>');
+  }
+});
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`🌐 Servidor web rodando na porta ${PORT}`);
+  console.log(`📱 Acesse http://localhost:${PORT}/qr pra escanear o QR Code`);
+});
 
 async function main() {
   console.log('🤖 FinBot - Assistente Financeiro starting...');
@@ -25,12 +70,13 @@ async function main() {
   });
 
   client.on('qr', (qr: string) => {
-    console.log('\n📱 Escaneie o QR Code abaixo para conectar ao WhatsApp:\n');
+    latestQR = qr;
+    console.log('\n📱 QR Code atualizado! Acesse /qr no navegador pra escanear.');
     qrcode.generate(qr, { small: true });
-    console.log('\n');
   });
 
   client.on('ready', () => {
+    latestQR = '';
     console.log('✅ FinBot conectado e pronto!');
     console.log('📱 Envie uma mensagem para começar.\n');
 
@@ -42,7 +88,7 @@ async function main() {
 
   client.on('message', async (message: Message) => {
     try {
-      await handleMessage(message, client);
+      await handleMessage(message);
     } catch (error) {
       console.error('Erro ao processar mensagem:', error);
       await message.reply('❌ Ocorreu um erro ao processar sua mensagem. Tente novamente.');
@@ -56,29 +102,28 @@ async function main() {
   client.initialize();
 }
 
-async function handleMessage(message: Message, client: Client): Promise<void> {
+async function handleMessage(message: Message): Promise<void> {
   const body = message.body.trim();
   const lowerBody = body.toLowerCase();
-  const contact = message.from;
 
-  console.log(`📩 Mensagem de ${contact}: ${body}`);
+  console.log(`📩 Mensagem de ${message.from}: ${body}`);
 
   if (lowerBody === 'ajuda' || lowerBody === 'help' || lowerBody === 'comandos') {
     await sendHelp(message);
     return;
   }
 
-  if (lowerBody === 'categorias' || lowerBody === 'listar categorias') {
+  if (lowerBody === 'categorias') {
     await message.reply(`🏷️ *Categorias disponíveis:*\n\n${getAllCategories()}`);
     return;
   }
 
-  if (lowerBody.startsWith('resumo') || lowerBody === 'resumo') {
+  if (lowerBody === 'resumo') {
     await sendSummary(message);
     return;
   }
 
-  if (lowerBody.startsWith('relatorio') || lowerBody === 'relatório') {
+  if (lowerBody === 'relatorio' || lowerBody === 'relatório') {
     await sendFullReport(message);
     return;
   }
