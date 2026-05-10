@@ -1,6 +1,11 @@
 node_modules/
 src/*.js
 src/*.map
+src/database.d.ts
+src/index.d.ts
+src/parser.d.ts
+src/reports.d.ts
+src/types.d.ts
 data/
 .wwebjs_auth/
 .env
