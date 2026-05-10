@@ -5,10 +5,11 @@ import { Expense, Category } from './types';
 import { v4 as uuidv4 } from 'uuid';
 
 let db: Database;
-const dbPath = path.join(__dirname, '..', 'data', 'finbot.db');
+
+const dataDir = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
+const dbPath = path.join(dataDir, 'finbot.db');
 
 export async function initDatabase(): Promise<void> {
-  const dataDir = path.join(__dirname, '..', 'data');
   if (!fs.existsSync(dataDir)) {
     fs.mkdirSync(dataDir, { recursive: true });
   }

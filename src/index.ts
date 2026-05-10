@@ -4,12 +4,14 @@ import QRCode from 'qrcode';
 import http from 'http';
 import cron from 'node-cron';
 import chromium from '@sparticuz/chromium';
+import puppeteer from 'puppeteer';
 import { initDatabase, addExpense, getExpensesByMonth, getLastExpenses, deleteExpense } from './database';
 import { parseExpenseMessage, getAllCategories } from './parser';
 import { generateMonthlyReport, formatReportAsText, formatExpenseConfirmation, formatLastExpenses, formatSummary } from './reports';
 import { Category } from './types';
 
 let latestQR: string = '';
+const authDir = process.env.WWEBJS_AUTH_DIR || '.wwebjs_auth';
 
 const server = http.createServer(async (req, res) => {
   if (req.url === '/qr' && latestQR) {
@@ -60,13 +62,9 @@ async function main() {
 
   const client = new Client({
     authStrategy: new LocalAuth({
-      dataPath: '.wwebjs_auth'
+      dataPath: authDir
     }),
-    puppeteer: {
-      executablePath: await chromium.executablePath(),
-      args: chromium.args,
-      headless: true
-    }
+    puppeteer: await getPuppeteerConfig()
   });
 
   client.on('qr', (qr: string) => {
@@ -245,6 +243,30 @@ async function sendMonthlyReport(client: Client): Promise<void> {
   } else {
     console.log('⚠️ Nenhum chat pessoal encontrado para enviar o relatório.');
   }
+}
+
+async function getPuppeteerConfig() {
+  if (process.env.PUPPETEER_EXECUTABLE_PATH) {
+    return {
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      headless: true
+    };
+  }
+
+  if (process.platform === 'win32') {
+    return {
+      executablePath: puppeteer.executablePath(),
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      headless: true
+    };
+  }
+
+  return {
+    executablePath: await chromium.executablePath(),
+    args: chromium.args,
+    headless: true
+  };
 }
 
 main().catch(err => {

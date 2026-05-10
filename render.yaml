@@ -1,7 +1,17 @@
 services:
   - type: web
     name: finbot
-    env: node
-    buildCommand: npm install && npm run build
-    startCommand: node src/index.js
-    plan: free
+    runtime: docker
+    plan: starter
+    healthCheckPath: /health
+    disk:
+      name: finbot-data
+      mountPath: /app/storage
+      sizeGB: 1
+    envVars:
+      - key: DATA_DIR
+        value: /app/storage/data
+      - key: WWEBJS_AUTH_DIR
+        value: /app/storage/.wwebjs_auth
+      - key: PUPPETEER_EXECUTABLE_PATH
+        value: /usr/bin/chromium
