@@ -4,7 +4,4 @@ services:
     env: node
     buildCommand: npm install && npm run build
     startCommand: node src/index.js
-    healthCheckPath: /health
-    regions:
-      - oregon
     plan: free
