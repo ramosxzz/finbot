@@ -1,0 +1,19 @@
+services:
+  finbot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: finbot
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      DATA_DIR: /app/storage/data
+      WWEBJS_AUTH_DIR: /app/storage/.wwebjs_auth
+      PUPPETEER_EXECUTABLE_PATH: /usr/bin/chromium
+    volumes:
+      - finbot-storage:/app/storage
+
+volumes:
+  finbot-storage:
