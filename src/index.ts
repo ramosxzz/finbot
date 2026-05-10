@@ -1,65 +1,62 @@
 import { Client, LocalAuth, Message } from 'whatsapp-web.js';
 import qrcode from 'qrcode-terminal';
 import cron from 'node-cron';
+import chromium from '@sparticuz/chromium';
 import { initDatabase, addExpense, getExpensesByMonth, getLastExpenses, deleteExpense } from './database';
 import { parseExpenseMessage, getAllCategories } from './parser';
 import { generateMonthlyReport, formatReportAsText, formatExpenseConfirmation, formatLastExpenses, formatSummary } from './reports';
 import { Category } from './types';
 
-console.log('🤖 FinBot - Assistente Financeiro starting...');
+async function main() {
+  console.log('🤖 FinBot - Assistente Financeiro starting...');
 
-initDatabase().then(() => {
+  await initDatabase();
   console.log('✅ Banco de dados inicializado!');
-}).catch(err => {
-  console.error('❌ Erro ao inicializar banco de dados:', err);
-  process.exit(1);
-});
 
-const client = new Client({
-  authStrategy: new LocalAuth({
-    dataPath: '.wwebjs_auth'
-  }),
-  puppeteer: {
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
-      '--no-first-run',
-      '--no-zygote',
-      '--single-process',
-      '--disable-gpu'
-    ],
-    headless: true
-  }
-});
-
-client.on('qr', (qr: string) => {
-  console.log('\n📱 Escaneie o QR Code abaixo para conectar ao WhatsApp:\n');
-  qrcode.generate(qr, { small: true });
-  console.log('\n');
-});
-
-client.on('ready', () => {
-  console.log('✅ FinBot conectado e pronto!');
-  console.log('📱 Envie uma mensagem para começar.\n');
-
-  cron.schedule('0 9 1 * *', () => {
-    console.log('📊 Enviando relatório mensal...');
-    sendMonthlyReport();
+  const client = new Client({
+    authStrategy: new LocalAuth({
+      dataPath: '.wwebjs_auth'
+    }),
+    puppeteer: {
+      executablePath: await chromium.executablePath(),
+      args: chromium.args,
+      headless: true
+    }
   });
-});
 
-client.on('message', async (message: Message) => {
-  try {
-    await handleMessage(message);
-  } catch (error) {
-    console.error('Erro ao processar mensagem:', error);
-    await message.reply('❌ Ocorreu um erro ao processar sua mensagem. Tente novamente.');
-  }
-});
+  client.on('qr', (qr: string) => {
+    console.log('\n📱 Escaneie o QR Code abaixo para conectar ao WhatsApp:\n');
+    qrcode.generate(qr, { small: true });
+    console.log('\n');
+  });
 
-async function handleMessage(message: Message): Promise<void> {
+  client.on('ready', () => {
+    console.log('✅ FinBot conectado e pronto!');
+    console.log('📱 Envie uma mensagem para começar.\n');
+
+    cron.schedule('0 9 1 * *', () => {
+      console.log('📊 Enviando relatório mensal...');
+      sendMonthlyReport(client);
+    });
+  });
+
+  client.on('message', async (message: Message) => {
+    try {
+      await handleMessage(message, client);
+    } catch (error) {
+      console.error('Erro ao processar mensagem:', error);
+      await message.reply('❌ Ocorreu um erro ao processar sua mensagem. Tente novamente.');
+    }
+  });
+
+  client.on('disconnected', () => {
+    console.log('❌ FinBot desconectado. Reconectando...');
+  });
+
+  client.initialize();
+}
+
+async function handleMessage(message: Message, client: Client): Promise<void> {
   const body = message.body.trim();
   const lowerBody = body.toLowerCase();
   const contact = message.from;
@@ -71,7 +68,7 @@ async function handleMessage(message: Message): Promise<void> {
     return;
   }
 
-  if (lowerBody === 'categorias' || lowerBody === 'categorias') {
+  if (lowerBody === 'categorias' || lowerBody === 'listar categorias') {
     await message.reply(`🏷️ *Categorias disponíveis:*\n\n${getAllCategories()}`);
     return;
   }
@@ -186,7 +183,7 @@ async function deleteExpenseById(message: Message, idOrIndex: string): Promise<v
   }
 }
 
-async function sendMonthlyReport(): Promise<void> {
+async function sendMonthlyReport(client: Client): Promise<void> {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
@@ -205,8 +202,7 @@ async function sendMonthlyReport(): Promise<void> {
   }
 }
 
-client.on('disconnected', () => {
-  console.log('❌ FinBot desconectado. Reconectando...');
+main().catch(err => {
+  console.error('❌ Erro fatal:', err);
+  process.exit(1);
 });
-
-client.initialize();
