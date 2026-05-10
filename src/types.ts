@@ -22,6 +22,12 @@ export interface Expense {
   createdAt: Date;
 }
 
+export interface KnownChat {
+  chatId: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface MonthlyReport {
   month: string;
   year: number;

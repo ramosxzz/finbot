@@ -1,6 +1,7 @@
 import TelegramBot from 'node-telegram-bot-api';
 import http from 'http';
-import { initDatabase, addExpense, addIncome, getExpensesByMonth, getIncomeByMonth, getLastExpenses, deleteExpense } from './database';
+import cron from 'node-cron';
+import { initDatabase, addExpense, addIncome, getExpensesByMonth, getIncomeByMonth, getKnownChats, getLastExpenses, getSetting, deleteExpense, setSetting, upsertChat } from './database';
 import { parseTransactionMessage, getAllCategories } from './parser';
 import { generateMonthlyReport, formatReportAsText, formatExpenseConfirmation, formatIncomeConfirmation, formatLastExpenses, formatSummary } from './reports';
 
@@ -54,6 +55,7 @@ async function main() {
   const bot = new TelegramBot(token, { polling: true });
 
   bot.onText(/^\/start$/, async (message) => {
+    upsertChat(String(message.chat.id));
     await bot.sendMessage(message.chat.id, getHelpText());
   });
 
@@ -67,6 +69,7 @@ async function main() {
     }
 
     try {
+      upsertChat(String(message.chat.id));
       await handleMessage(bot, message);
     } catch (error) {
       console.error('Erro ao processar mensagem:', error);
@@ -77,6 +80,8 @@ async function main() {
   bot.on('polling_error', (error) => {
     console.error('Erro no polling do Telegram:', error.message);
   });
+
+  scheduleMonthlyReport(bot);
 
   console.log('FinBot Telegram conectado e pronto.');
 }
@@ -123,8 +128,8 @@ async function handleMessage(bot: TelegramBot, message: TelegramBot.Message): Pr
   const parsed = parseTransactionMessage(body);
   if (parsed) {
     const transaction = parsed.type === 'income'
-      ? addIncome(parsed.amount, parsed.description)
-      : addExpense(parsed.amount, parsed.description, parsed.category);
+      ? addIncome(parsed.amount, parsed.description, parsed.date)
+      : addExpense(parsed.amount, parsed.description, parsed.category, parsed.date);
     const confirmation = parsed.type === 'income'
       ? formatIncomeConfirmation(transaction)
       : formatExpenseConfirmation(transaction);
@@ -154,6 +159,7 @@ Registrar gastos:
 
 Registrar recebimentos:
 - "recebi 150 da raquel"
+- "recebi 2000 no dia 06/05 da solaire"
 - "ganhei 200 de comissao"
 - "entrou 1200 salario"
 
@@ -164,6 +170,7 @@ Consultar:
 - resumo - Resumo do mes atual
 - ultimos 5 - Ultimos 5 gastos
 - relatorio - Relatorio mensal completo
+- O relatorio tambem e enviado automaticamente no 5o dia util do mes
 
 Categorias:
 - categorias - Ver todas as categorias
@@ -171,6 +178,53 @@ Categorias:
 Gerenciar:
 - excluir [ID] - Excluir um gasto pelo ID
 `.trim();
+}
+
+function scheduleMonthlyReport(bot: TelegramBot): void {
+  cron.schedule('0 9 * * *', async () => {
+    await sendScheduledMonthlyReport(bot);
+  }, {
+    timezone: 'America/Sao_Paulo'
+  });
+}
+
+async function sendScheduledMonthlyReport(bot: TelegramBot): Promise<void> {
+  const now = new Date();
+
+  if (!isFifthBusinessDay(now)) {
+    return;
+  }
+
+  const key = `monthly_report_sent_${now.getFullYear()}_${now.getMonth() + 1}`;
+  if (getSetting(key) === 'true') {
+    return;
+  }
+
+  const report = generateMonthlyReport(now.getFullYear(), now.getMonth() + 1);
+  const text = `Relatorio automatico do 5o dia util\n\n${formatReportAsText(report)}`;
+  const chats = getKnownChats();
+
+  for (const chat of chats) {
+    await bot.sendMessage(chat.chatId, text);
+  }
+
+  setSetting(key, 'true');
+}
+
+function isFifthBusinessDay(date: Date): boolean {
+  if (date.getDay() === 0 || date.getDay() === 6) {
+    return false;
+  }
+
+  let businessDays = 0;
+  for (let day = 1; day <= date.getDate(); day++) {
+    const current = new Date(date.getFullYear(), date.getMonth(), day);
+    if (current.getDay() !== 0 && current.getDay() !== 6) {
+      businessDays++;
+    }
+  }
+
+  return businessDays === 5;
 }
 
 async function sendSummary(bot: TelegramBot, message: TelegramBot.Message): Promise<void> {

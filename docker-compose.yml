@@ -9,6 +9,7 @@ services:
       - "3000:3000"
     environment:
       NODE_ENV: production
+      TZ: America/Sao_Paulo
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       DATA_DIR: /app/storage/data
     volumes:

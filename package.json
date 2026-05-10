@@ -12,7 +12,9 @@
     "dev": "tsc && node src/index.js"
   },
   "dependencies": {
+    "@types/node-cron": "^3.0.11",
     "@types/node-telegram-bot-api": "^0.64.14",
+    "node-cron": "^4.2.1",
     "node-telegram-bot-api": "^0.67.0",
     "sql.js": "^1.11.0",
     "uuid": "^10.0.0"

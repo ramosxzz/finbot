@@ -1,7 +1,7 @@
 import initSqlJs, { Database } from 'sql.js';
 import path from 'path';
 import fs from 'fs';
-import { Expense, Category, TransactionType } from './types';
+import { Expense, Category, KnownChat, TransactionType } from './types';
 import { v4 as uuidv4 } from 'uuid';
 
 let db: Database;
@@ -39,6 +39,21 @@ export async function initDatabase(): Promise<void> {
 
   db.run(`
     CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(date)
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS chats (
+      chatId TEXT PRIMARY KEY,
+      createdAt TEXT NOT NULL,
+      updatedAt TEXT NOT NULL
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
   `);
 
   saveDatabase();
@@ -187,6 +202,61 @@ export function getPreviousMonthData(year: number, month: number): { total: numb
   }
 
   return { total, categories };
+}
+
+export function upsertChat(chatId: string): void {
+  const now = new Date().toISOString();
+
+  db.run(
+    `INSERT INTO chats (chatId, createdAt, updatedAt)
+     VALUES (?, ?, ?)
+     ON CONFLICT(chatId) DO UPDATE SET updatedAt = excluded.updatedAt`,
+    [chatId, now, now]
+  );
+
+  saveDatabase();
+}
+
+export function getKnownChats(): KnownChat[] {
+  const stmt = db.prepare('SELECT * FROM chats ORDER BY updatedAt DESC');
+  const chats: KnownChat[] = [];
+
+  while (stmt.step()) {
+    const row = stmt.getAsObject() as any;
+    chats.push({
+      chatId: String(row.chatId),
+      createdAt: new Date(row.createdAt),
+      updatedAt: new Date(row.updatedAt)
+    });
+  }
+  stmt.free();
+
+  return chats;
+}
+
+export function getSetting(key: string): string | null {
+  const stmt = db.prepare('SELECT value FROM settings WHERE key = ?');
+  stmt.bind([key]);
+
+  let value: string | null = null;
+  if (stmt.step()) {
+    const row = stmt.getAsObject() as any;
+    value = String(row.value);
+  }
+  stmt.free();
+
+  return value;
+}
+
+export function setSetting(key: string, value: string): void {
+  db.run(
+    `INSERT INTO settings (key, value)
+     VALUES (?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+    [key, value]
+  );
+
+  saveDatabase();
 }
 
 function ensureTypeColumn(): void {

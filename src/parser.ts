@@ -5,6 +5,7 @@ export interface ParsedTransaction {
   description: string;
   category: Category;
   type: TransactionType;
+  date: Date;
 }
 
 const categoryKeywords: Record<Category, string[]> = {
@@ -63,16 +64,49 @@ function buildTransaction(amountText: string, descriptionText: string, type: Tra
     return null;
   }
 
-  const description = cleanDescription(descriptionText) || (type === 'income' ? 'Recebimento' : 'Gasto');
+  const { description: descriptionWithoutDate, date } = extractDate(descriptionText);
+  const description = cleanDescription(descriptionWithoutDate) || (type === 'income' ? 'Recebimento' : 'Gasto');
   const category = type === 'income' ? Category.OUTROS : detectCategory(description);
 
-  return { amount, description, category, type };
+  return { amount, description, category, type, date };
 }
 
 function cleanDescription(text: string): string {
   return text
-    .replace(/^(no|na|de|da|do|dos|das|em|com|para|pra)\s+/i, '')
+    .replace(/^(no|na|de|da|do|dos|das|em|com|para|pra|dia)\s+/i, '')
     .trim();
+}
+
+function extractDate(text: string): { description: string; date: Date } {
+  const now = new Date();
+  const dateRegex = /(?:no\s+dia|dia|em)?\s*(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?/i;
+  const match = text.match(dateRegex);
+
+  if (!match) {
+    return { description: text, date: now };
+  }
+
+  const day = Number.parseInt(match[1], 10);
+  const month = Number.parseInt(match[2], 10);
+  const parsedYear = match[3] ? Number.parseInt(match[3], 10) : now.getFullYear();
+  const year = parsedYear < 100 ? 2000 + parsedYear : parsedYear;
+  const date = new Date(year, month - 1, day);
+
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return { description: text, date: now };
+  }
+
+  const description = text
+    .replace(dateRegex, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  return { description, date };
 }
 
 function detectCategory(text: string): Category {
