@@ -1,8 +1,8 @@
 import TelegramBot from 'node-telegram-bot-api';
 import http from 'http';
-import { initDatabase, addExpense, getExpensesByMonth, getLastExpenses, deleteExpense } from './database';
-import { parseExpenseMessage, getAllCategories } from './parser';
-import { generateMonthlyReport, formatReportAsText, formatExpenseConfirmation, formatLastExpenses, formatSummary } from './reports';
+import { initDatabase, addExpense, addIncome, getExpensesByMonth, getIncomeByMonth, getLastExpenses, deleteExpense } from './database';
+import { parseTransactionMessage, getAllCategories } from './parser';
+import { generateMonthlyReport, formatReportAsText, formatExpenseConfirmation, formatIncomeConfirmation, formatLastExpenses, formatSummary } from './reports';
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 
@@ -120,10 +120,14 @@ async function handleMessage(bot: TelegramBot, message: TelegramBot.Message): Pr
     return;
   }
 
-  const parsed = parseExpenseMessage(body);
+  const parsed = parseTransactionMessage(body);
   if (parsed) {
-    const expense = addExpense(parsed.amount, parsed.description, parsed.category);
-    const confirmation = formatExpenseConfirmation(expense);
+    const transaction = parsed.type === 'income'
+      ? addIncome(parsed.amount, parsed.description)
+      : addExpense(parsed.amount, parsed.description, parsed.category);
+    const confirmation = parsed.type === 'income'
+      ? formatIncomeConfirmation(transaction)
+      : formatExpenseConfirmation(transaction);
     await bot.sendMessage(chatId, confirmation);
     return;
   }
@@ -132,7 +136,8 @@ async function handleMessage(bot: TelegramBot, message: TelegramBot.Message): Pr
     chatId,
     `Nao entendi sua mensagem.\n\n` +
     `Envie ajuda para ver os comandos disponiveis ou tente algo como:\n` +
-    `gastei 50 reais de almoco`
+    `gastei 50 reais de almoco\n` +
+    `recebi 150 da raquel`
   );
 }
 
@@ -144,6 +149,16 @@ Registrar gastos:
 - "gastei 50 de almoco"
 - "gastei 25 no Uber"
 - "gastei 100 reais no mercado"
+- "paguei 80 de mercado"
+- "comprei 35 de remedio"
+
+Registrar recebimentos:
+- "recebi 150 da raquel"
+- "ganhei 200 de comissao"
+- "entrou 1200 salario"
+
+Atalho:
+- "10 uber paola" tambem registra gasto
 
 Consultar:
 - resumo - Resumo do mes atual
@@ -164,7 +179,8 @@ async function sendSummary(bot: TelegramBot, message: TelegramBot.Message): Prom
   const month = now.getMonth() + 1;
 
   const expenses = getExpensesByMonth(year, month);
-  const summary = formatSummary(month, year, expenses);
+  const income = getIncomeByMonth(year, month);
+  const summary = formatSummary(month, year, expenses, income);
 
   await bot.sendMessage(message.chat.id, summary);
 }

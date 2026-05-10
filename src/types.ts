@@ -10,11 +10,14 @@ export enum Category {
   OUTROS = 'Outros'
 }
 
+export type TransactionType = 'expense' | 'income';
+
 export interface Expense {
   id: string;
   amount: number;
   description: string;
   category: Category;
+  type: TransactionType;
   date: Date;
   createdAt: Date;
 }
@@ -23,6 +26,8 @@ export interface MonthlyReport {
   month: string;
   year: number;
   totalSpent: number;
+  totalIncome: number;
+  balance: number;
   categoryBreakdown: Record<string, number>;
   topExpenses: Expense[];
   tips: string[];

@@ -1,13 +1,16 @@
 import { Expense, Category, MonthlyReport } from './types';
-import { getExpensesByMonth, getPreviousMonthData } from './database';
+import { getExpensesByMonth, getIncomeByMonth, getPreviousMonthData } from './database';
 
 export function generateMonthlyReport(year: number, month: number): MonthlyReport {
   const expenses = getExpensesByMonth(year, month);
+  const income = getIncomeByMonth(year, month);
 
   const monthNames = ['Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho',
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
   const totalSpent = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const totalIncome = income.reduce((sum, e) => sum + e.amount, 0);
+  const balance = totalIncome - totalSpent;
 
   const categoryBreakdown: Record<string, number> = {};
   for (const expense of expenses) {
@@ -36,6 +39,8 @@ export function generateMonthlyReport(year: number, month: number): MonthlyRepor
     month: monthNames[month - 1],
     year,
     totalSpent,
+    totalIncome,
+    balance,
     categoryBreakdown,
     topExpenses,
     tips,
@@ -102,6 +107,8 @@ export function formatReportAsText(report: MonthlyReport): string {
   lines.push(`RELATORIO FINANCEIRO - ${report.month.toUpperCase()}/${report.year}`);
   lines.push('');
   lines.push(`TOTAL GASTO: R$ ${formatMoney(report.totalSpent)}`);
+  lines.push(`TOTAL RECEBIDO: R$ ${formatMoney(report.totalIncome)}`);
+  lines.push(`SALDO: R$ ${formatMoney(report.balance)}`);
   lines.push(`MEDIA DIARIA: R$ ${formatMoney(report.averageDaily)}`);
 
   if (report.comparisonWithPreviousMonth !== null) {
@@ -144,30 +151,39 @@ export function formatExpenseConfirmation(expense: Expense): string {
   return `Gasto registrado!\n\nDescricao: ${expense.description}\nValor: R$ ${formatMoney(expense.amount)}\nCategoria: ${expense.category}\nData: ${dateStr}\nID: ${expense.id}`;
 }
 
-export function formatLastExpenses(expenses: Expense[]): string {
-  if (expenses.length === 0) {
-    return 'Nenhum gasto registrado ainda.';
+export function formatIncomeConfirmation(income: Expense): string {
+  const dateStr = income.date.toLocaleDateString('pt-BR');
+  return `Recebimento registrado!\n\nDescricao: ${income.description}\nValor: R$ ${formatMoney(income.amount)}\nData: ${dateStr}\nID: ${income.id}`;
+}
+
+export function formatLastExpenses(transactions: Expense[]): string {
+  if (transactions.length === 0) {
+    return 'Nenhum lancamento registrado ainda.';
   }
 
   const lines: string[] = [];
-  lines.push('Ultimos gastos:\n');
+  lines.push('Ultimos lancamentos:\n');
 
-  expenses.forEach((expense, index) => {
-    const dateStr = expense.date.toLocaleDateString('pt-BR');
-    lines.push(`${index + 1}. ${expense.category} - R$ ${formatMoney(expense.amount)} (${dateStr})`);
-    lines.push(`   ${expense.description}`);
-    lines.push(`   ID: ${expense.id}`);
+  transactions.forEach((transaction, index) => {
+    const dateStr = transaction.date.toLocaleDateString('pt-BR');
+    const label = transaction.type === 'income' ? 'Recebido' : transaction.category;
+    const sign = transaction.type === 'income' ? '+' : '-';
+    lines.push(`${index + 1}. ${label} - ${sign}R$ ${formatMoney(transaction.amount)} (${dateStr})`);
+    lines.push(`   ${transaction.description}`);
+    lines.push(`   ID: ${transaction.id}`);
     lines.push('');
   });
 
   return lines.join('\n');
 }
 
-export function formatSummary(month: number, year: number, expenses: Expense[]): string {
+export function formatSummary(month: number, year: number, expenses: Expense[], income: Expense[] = []): string {
   const monthNames = ['Janeiro', 'Fevereiro', 'Marco', 'Abril', 'Maio', 'Junho',
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
   const total = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const totalIncome = income.reduce((sum, e) => sum + e.amount, 0);
+  const balance = totalIncome - total;
 
   const categoryTotals: Record<string, number> = {};
   for (const expense of expenses) {
@@ -176,7 +192,9 @@ export function formatSummary(month: number, year: number, expenses: Expense[]):
   }
 
   let response = `Resumo de ${monthNames[month - 1]}/${year}\n\n`;
-  response += `Total: R$ ${formatMoney(total)}\n`;
+  response += `Recebido: R$ ${formatMoney(totalIncome)}\n`;
+  response += `Gasto: R$ ${formatMoney(total)}\n`;
+  response += `Saldo: R$ ${formatMoney(balance)}\n`;
   response += `Total de gastos: ${expenses.length}\n\n`;
 
   response += 'Por categoria:\n';
