@@ -1,7 +1,9 @@
 import TelegramBot from 'node-telegram-bot-api';
 import http from 'http';
+import fs from 'fs';
+import path from 'path';
 import cron from 'node-cron';
-import { initDatabase, addExpense, addIncome, getExpensesByMonth, getIncomeByMonth, getKnownChats, getLastExpenses, getSetting, deleteExpense, setSetting, upsertChat } from './database';
+import { initDatabase, addExpense, addIncome, getExpensesByMonth, getIncomeByMonth, getKnownChats, getLastExpenses, getSetting, deleteExpense, setSetting, upsertChat, getTransactionsFiltered, getAvailableMonths } from './database';
 import { parseTransactionMessage, getAllCategories } from './parser';
 import { parseTransactionWithAi } from './aiParser';
 import { parseCommand } from './commandParser';
@@ -9,35 +11,157 @@ import { generateMonthlyReport, formatReportAsText, formatExpenseConfirmation, f
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 
+function parseCorsHeaders(): Record<string, string> {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
+}
+
+function parseQueryParams(url: string): Record<string, string> {
+  const qIdx = url.indexOf('?');
+  if (qIdx === -1) return {};
+  const qs = url.slice(qIdx + 1);
+  const result: Record<string, string> = {};
+  for (const part of qs.split('&')) {
+    const [k, v] = part.split('=');
+    if (k) result[decodeURIComponent(k)] = v ? decodeURIComponent(v) : '';
+  }
+  return result;
+}
+
+function sendJson(res: http.ServerResponse, data: unknown, status = 200): void {
+  const body = JSON.stringify(data);
+  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', ...parseCorsHeaders() });
+  res.end(body);
+}
+
+function handleApiRequest(req: http.IncomingMessage, res: http.ServerResponse, pathname: string): boolean {
+  const params = parseQueryParams(req.url || '');
+
+  if (pathname === '/api/health') {
+    sendJson(res, { status: 'ok' });
+    return true;
+  }
+
+  if (pathname === '/api/months') {
+    try {
+      const months = getAvailableMonths();
+      sendJson(res, months);
+    } catch {
+      sendJson(res, { error: 'DB not ready' }, 503);
+    }
+    return true;
+  }
+
+  if (pathname === '/api/transactions') {
+    try {
+      const year = params.year ? Number(params.year) : undefined;
+      const month = params.month ? Number(params.month) : undefined;
+      const type = (params.type as 'expense' | 'income' | undefined) || undefined;
+      const category = params.category || undefined;
+      const transactions = getTransactionsFiltered({ year, month, type, category });
+      const serialized = transactions.map(t => ({
+        ...t,
+        date: t.date.toISOString(),
+        createdAt: t.createdAt.toISOString(),
+      }));
+      sendJson(res, serialized);
+    } catch {
+      sendJson(res, { error: 'DB not ready' }, 503);
+    }
+    return true;
+  }
+
+  if (pathname === '/api/summary') {
+    try {
+      const now = new Date();
+      const year = params.year ? Number(params.year) : now.getFullYear();
+      const month = params.month ? Number(params.month) : now.getMonth() + 1;
+
+      const expenses = getExpensesByMonth(year, month);
+      const income = getIncomeByMonth(year, month);
+
+      const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
+      const totalIncome = income.reduce((s, e) => s + e.amount, 0);
+
+      const byCategory: Record<string, { total: number; count: number }> = {};
+      for (const e of expenses) {
+        if (!byCategory[e.category]) byCategory[e.category] = { total: 0, count: 0 };
+        byCategory[e.category].total += e.amount;
+        byCategory[e.category].count += 1;
+      }
+
+      const daysInMonth = new Date(year, month, 0).getDate();
+      const dailyExpenses: { day: number; total: number }[] = [];
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dayStr = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+        const dayTotal = expenses
+          .filter(e => e.date.toISOString().startsWith(dayStr))
+          .reduce((s, e) => s + e.amount, 0);
+        dailyExpenses.push({ day: d, total: dayTotal });
+      }
+
+      sendJson(res, {
+        year,
+        month,
+        totalExpenses,
+        totalIncome,
+        balance: totalIncome - totalExpenses,
+        transactionCount: expenses.length + income.length,
+        byCategory: Object.entries(byCategory)
+          .map(([category, data]) => ({ category, ...data }))
+          .sort((a, b) => b.total - a.total),
+        dailyExpenses,
+      });
+    } catch {
+      sendJson(res, { error: 'DB not ready' }, 503);
+    }
+    return true;
+  }
+
+  return false;
+}
+
+const dashboardPath = path.join(__dirname, '..', 'public', 'index.html');
+
 const server = http.createServer((req, res) => {
-  if (req.url === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'ok' }));
+  const url = req.url || '/';
+  const pathname = url.split('?')[0];
+
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, parseCorsHeaders());
+    res.end();
     return;
   }
 
-  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-  res.end(`
-    <html>
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>FinBot Telegram</title>
-        <style>
-          body { display:flex; justify-content:center; align-items:center; min-height:100vh; margin:0; background:#111; color:#fff; font-family:Arial, sans-serif; }
-          .container { max-width:520px; padding:32px; }
-          h1 { margin:0 0 12px; }
-          p { color:#ccc; line-height:1.5; }
-          code { background:#222; padding:2px 6px; border-radius:4px; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <h1>FinBot Telegram</h1>
-          <p>O bot esta rodando. Abra seu bot no Telegram e envie <code>/start</code> ou <code>ajuda</code>.</p>
-        </div>
-      </body>
-    </html>
-  `);
+  if (pathname === '/health') {
+    sendJson(res, { status: 'ok' });
+    return;
+  }
+
+  if (pathname.startsWith('/api/')) {
+    const handled = handleApiRequest(req, res, pathname);
+    if (!handled) {
+      sendJson(res, { error: 'Not found' }, 404);
+    }
+    return;
+  }
+
+  if (pathname === '/' || pathname === '/dashboard') {
+    try {
+      const html = fs.readFileSync(dashboardPath, 'utf-8');
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(html);
+    } catch {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.end(`<html><body style="background:#111;color:#fff;font-family:sans-serif;padding:2rem"><h1>FinBot</h1><p>Bot rodando. Dashboard em construção.</p></body></html>`);
+    }
+    return;
+  }
+
+  sendJson(res, { error: 'Not found' }, 404);
 });
 
 const PORT = Number(process.env.PORT || 3000);

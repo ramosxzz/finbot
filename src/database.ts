@@ -178,6 +178,78 @@ export function getExpensesByCategory(category: Category, year: number, month: n
   return expenses;
 }
 
+export function getTransactionsFiltered(options: {
+  year?: number;
+  month?: number;
+  type?: TransactionType;
+  category?: string;
+}): Expense[] {
+  const conditions: string[] = [];
+  const params: (string | number)[] = [];
+
+  if (options.year !== undefined && options.month !== undefined) {
+    const startDate = new Date(options.year, options.month - 1, 1);
+    const endDate = new Date(options.year, options.month, 0, 23, 59, 59, 999);
+    conditions.push('date >= ? AND date <= ?');
+    params.push(startDate.toISOString(), endDate.toISOString());
+  } else if (options.year !== undefined) {
+    const startDate = new Date(options.year, 0, 1);
+    const endDate = new Date(options.year, 11, 31, 23, 59, 59, 999);
+    conditions.push('date >= ? AND date <= ?');
+    params.push(startDate.toISOString(), endDate.toISOString());
+  }
+
+  if (options.type) {
+    conditions.push('type = ?');
+    params.push(options.type);
+  }
+
+  if (options.category) {
+    conditions.push('category = ?');
+    params.push(options.category);
+  }
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+  const stmt = db.prepare(`SELECT * FROM expenses ${where} ORDER BY date DESC`);
+  if (params.length > 0) stmt.bind(params);
+
+  const expenses: Expense[] = [];
+  while (stmt.step()) {
+    const row = stmt.getAsObject() as any;
+    expenses.push({
+      id: row.id,
+      amount: row.amount,
+      description: row.description,
+      category: row.category as Category,
+      type: (row.type || 'expense') as TransactionType,
+      date: new Date(row.date),
+      createdAt: new Date(row.createdAt)
+    });
+  }
+  stmt.free();
+
+  return expenses;
+}
+
+export function getAvailableMonths(): { year: number; month: number }[] {
+  const stmt = db.prepare(`
+    SELECT DISTINCT
+      CAST(strftime('%Y', date) AS INTEGER) as year,
+      CAST(strftime('%m', date) AS INTEGER) as month
+    FROM expenses
+    ORDER BY year DESC, month DESC
+  `);
+
+  const months: { year: number; month: number }[] = [];
+  while (stmt.step()) {
+    const row = stmt.getAsObject() as any;
+    months.push({ year: Number(row.year), month: Number(row.month) });
+  }
+  stmt.free();
+
+  return months;
+}
+
 export function getPreviousMonthData(year: number, month: number): { total: number; categories: Record<string, number> } | null {
   let prevYear = year;
   let prevMonth = month - 1;
