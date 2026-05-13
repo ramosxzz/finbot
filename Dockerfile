@@ -7,6 +7,7 @@ RUN npm ci --include=dev
 
 COPY tsconfig.json ./
 COPY src ./src
+COPY public ./public
 
 RUN npm run build \
   && npm prune --omit=dev
