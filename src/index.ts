@@ -124,7 +124,30 @@ function handleApiRequest(req: http.IncomingMessage, res: http.ServerResponse, p
   return false;
 }
 
-const dashboardPath = path.join(__dirname, '..', 'public', 'index.html');
+const publicDir = path.join(__dirname, '..', 'public');
+
+const MIME: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.json': 'application/json; charset=utf-8',
+  '.js':   'application/javascript; charset=utf-8',
+  '.svg':  'image/svg+xml',
+  '.png':  'image/png',
+  '.ico':  'image/x-icon',
+  '.webmanifest': 'application/manifest+json',
+};
+
+function serveStatic(res: http.ServerResponse, filePath: string): boolean {
+  try {
+    const data = fs.readFileSync(filePath);
+    const ext = path.extname(filePath);
+    const mime = MIME[ext] || 'application/octet-stream';
+    res.writeHead(200, { 'Content-Type': mime, 'Cache-Control': 'public, max-age=3600' });
+    res.end(data);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 const server = http.createServer((req, res) => {
   const url = req.url || '/';
@@ -143,25 +166,18 @@ const server = http.createServer((req, res) => {
 
   if (pathname.startsWith('/api/')) {
     const handled = handleApiRequest(req, res, pathname);
-    if (!handled) {
-      sendJson(res, { error: 'Not found' }, 404);
-    }
+    if (!handled) sendJson(res, { error: 'Not found' }, 404);
     return;
   }
 
-  if (pathname === '/' || pathname === '/dashboard') {
-    try {
-      const html = fs.readFileSync(dashboardPath, 'utf-8');
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(html);
-    } catch {
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-      res.end(`<html><body style="background:#111;color:#fff;font-family:sans-serif;padding:2rem"><h1>FinBot</h1><p>Bot rodando. Dashboard em construção.</p></body></html>`);
-    }
-    return;
-  }
+  const target = (pathname === '/' || pathname === '/dashboard')
+    ? path.join(publicDir, 'index.html')
+    : path.join(publicDir, pathname);
 
-  sendJson(res, { error: 'Not found' }, 404);
+  if (!serveStatic(res, target)) {
+    res.writeHead(404, { 'Content-Type': 'text/plain' });
+    res.end('Not found');
+  }
 });
 
 const PORT = Number(process.env.PORT || 3000);
