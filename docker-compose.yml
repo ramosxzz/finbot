@@ -17,5 +17,13 @@ services:
     volumes:
       - finbot-storage:/app/storage
 
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: finbot-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --url http://finbot:3000
+    depends_on:
+      - finbot
+
 volumes:
   finbot-storage:
