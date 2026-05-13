@@ -561,6 +561,7 @@
     <div class="logo">💰</div>
     <h1>FinBot <span>Dashboard</span></h1>
   </div>
+  <span id="lastUpdate" style="font-size:0.7rem;color:var(--muted);flex:1;text-align:center;display:none"></span>
   <div class="month-select">
     <label>Período</label>
     <select id="monthSelect"></select>
@@ -725,7 +726,12 @@
       allTransactions = transactions;
       applyFilters();
     } catch (e) { console.error(e); }
-    finally { showLoading(false); }
+    finally {
+      showLoading(false);
+      const el = document.getElementById('lastUpdate');
+      el.style.display = 'inline';
+      el.textContent = 'atualizado às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    }
   }
 
   function renderCards(s) {
@@ -947,6 +953,14 @@
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
   }
+
+  // Auto-refresh a cada 30s
+  setInterval(() => loadData(), 30000);
+
+  // Atualiza quando voltar para o app
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') loadData();
+  });
 </script>
 </body>
 </html>
