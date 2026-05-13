@@ -18,6 +18,11 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+    html {
+      overflow-x: hidden;
+      -webkit-text-size-adjust: 100%;
+    }
+
     :root {
       --bg:          #000000;
       --surface:     #0d0d0d;
@@ -40,7 +45,10 @@
       color: var(--text);
       font-family: 'Inter', system-ui, -apple-system, sans-serif;
       min-height: 100vh;
+      min-height: -webkit-fill-available;
+      overflow-x: hidden;
       -webkit-font-smoothing: antialiased;
+      padding-bottom: env(safe-area-inset-bottom);
     }
 
     /* ── Header ── */
@@ -49,12 +57,16 @@
       align-items: center;
       justify-content: space-between;
       padding: 16px 24px;
+      padding-top: calc(16px + env(safe-area-inset-top));
+      padding-left: calc(24px + env(safe-area-inset-left));
+      padding-right: calc(24px + env(safe-area-inset-right));
       border-bottom: 1px solid var(--border);
       background: var(--surface);
       position: sticky;
       top: 0;
       z-index: 100;
       gap: 12px;
+      width: 100%;
     }
 
     .header-brand {
@@ -124,7 +136,11 @@
     main {
       max-width: 1400px;
       margin: 0 auto;
-      padding: 24px 24px;
+      padding: 24px;
+      padding-left: calc(24px + env(safe-area-inset-left));
+      padding-right: calc(24px + env(safe-area-inset-right));
+      width: 100%;
+      overflow-x: hidden;
     }
 
     /* ── Cards ── */
@@ -301,6 +317,7 @@
       gap: 8px;
       flex-wrap: wrap;
       margin-bottom: 14px;
+      width: 100%;
     }
 
     .filter-select,
@@ -315,6 +332,7 @@
       cursor: pointer;
       transition: border-color 0.2s;
       -webkit-appearance: none;
+      max-width: 100%;
     }
 
     .filter-select:focus,
@@ -324,7 +342,8 @@
 
     .filter-input {
       flex: 1;
-      min-width: 140px;
+      min-width: 0;
+      width: 100%;
       cursor: text;
     }
 
@@ -492,8 +511,11 @@
 
     /* ── Mobile ── */
     @media (max-width: 600px) {
-      header { padding: 12px 16px; }
-      main   { padding: 16px 14px; }
+      header {
+        padding: 12px 16px;
+        padding-top: calc(12px + env(safe-area-inset-top));
+      }
+      main { padding: 16px 14px; }
 
       .cards {
         grid-template-columns: 1fr 1fr;
